@@ -184,7 +184,7 @@ for target in target_states:
     G += [gz(target)]
 defaultvalue = lambda state: 0
 
-H = 4
+H = 12
 # print(S)
 problem = SetBasedMCTS(S, U, G, alpha, p_disc, H, defaultvalue)
 (values, policies) = problem.solve(budget=0.2)
