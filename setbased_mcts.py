@@ -150,7 +150,7 @@ class SetBasedMCTS:
         return values, policies
 
 
-h = 0.2
+h = 0.19
 S = []
 U = []
 x = h
@@ -184,17 +184,20 @@ for target in target_states:
     G += [gz(target)]
 defaultvalue = lambda state: 0
 
-H = 12
+H = 4
 # print(S)
 problem = SetBasedMCTS(S, U, G, alpha, p_disc, H, defaultvalue)
 (values, policies) = problem.solve(budget=0.2)
 # print(f"values \n {values}")
 print(f"policies \n {policies}")
-plt.plot(S, [values['101010101010'][s] for s in S])
+key = '10'*int(H/2)
+plt.plot(S, [values[key][s] for s in S])
 
-V = problem.solveBellman('101010101010')
-print(f"V[{S[5]}] = {V[S[5]]}")
+V = problem.solveBellman(key)
+print(f"V[{S[4]}] = {V[S[4]]}")
 plt.plot(S, [V[s] for s in S])
-plt.show()
+plt.savefig("figure.png")
+
+
 # class setbasedValue:
 #     def __init__(self, mdpset, initV, H):
