@@ -235,8 +235,9 @@ for i in range(6):
 plt.figure(2)
 plt.title("error")
 plt.plot(err)
-plt.show()
-# plt.savefig("figure.png")
+plt.savefig("error.png")
+plt.figure(0)
+plt.savefig("values.png")
 
 
 # class setbasedValue:
