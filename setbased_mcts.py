@@ -1,5 +1,4 @@
 import time
-
 import mcts
 import math
 import random
@@ -104,30 +103,37 @@ class SetBasedMCTS:
                 dist = next_dist
         return V
 
+    def bellman_iteration(self, proc: mdp.mdp, V):
+        pi = {}
+        nextV = {}
+        for s in proc.S:
+            minQ = math.inf
+            mina = list(proc.U)[0]
+            for a in proc.U:
+
+                Q = proc.C(s, a) + proc.alpha * (sum([proc.P(s_next, s, a)*V[s_next] for s_next in proc.S]))
+                # if s == list(proc.S)[0]:
+                #     print(f"a = {a}, Q = {Q}")
+                #     print(f"stagecost = {proc.C(s, a)}")
+                #     print(f"alpha time exp = {proc.alpha * sum([proc.P(s_next, s, a) * V[s_next] for s_next in proc.S])}")
+                if Q < minQ:
+                    minQ = Q
+                    mina = a
+            pi[s] = mina
+            nextV[s] = minQ
+        return nextV, pi
     def solveBellman(self, seqkey):
         seq = []
         for t in range(len(seqkey)):
-            print(f"key : {seqkey[t]} , mdpname = {self.mdpset[int(seqkey[t])].name}")
+            # print(f"key : {seqkey[t]} , mdpname = {self.mdpset[int(seqkey[t])].name}")
             seq.append(self.mdpset[int(seqkey[t])])
         V = {}
         for s in self.S:
             V[s] = 0
-        V_next = V
-        for h in range(self.H):
-            for s in self.S:
-                val = math.inf
-                minu = list(self.U)[0]
-                for u in self.U:
-                    exp = seq[self.H - 1 - h].C(s, u) + sum([self.P(y, s, u) * V[y] for y in self.S])
-                    if exp < val:
-                        val = exp
-                        minu = u
-                #print(f"state: {s} time: {H - h} policy {round(minu, 3)} ")
-                #print(self.alpha ** (self.H - h))
-                V_next[s] = (self.alpha ** (self.H - h - 1)) * val
-                #print(V_next)
-            V = V_next
-        return V
+        V_iter = V
+        for i in range(self.H):
+            (V_iter, pi_iter) = self.bellman_iteration(seq[self.H-1-i], V_iter)
+        return (V_iter, pi_iter)
 
     def solve(self, budget):
         tic = time.time()
@@ -138,7 +144,7 @@ class SetBasedMCTS:
         values = {}
         # print(f"H = {self.H}, length of seq = {len(self.sequences[0])}")
         for mdpseq in self.sequences:
-            print(f"policy for mdp {mdpseq}")
+            # print(f"policy for mdp {mdpseq}")
             key = ''.join([format(mdp.name, 'd') for mdp in mdpseq])
             policy = mcts.get_policy(mdpseq, budget, self.H, defaultvalue)
             policies[key] = policy
@@ -146,9 +152,21 @@ class SetBasedMCTS:
             #print(f"value for mdp {mdpseq}")
             key = ''.join([format(mdp.name, 'd') for mdp in mdpseq])
             values[key] = self.rollout_seq_policy(mdpseq, policies)
-        print(f"elapsed time: {time.time() - tic}")
+        # print(f"elapsed time: {time.time() - tic}")
         return values, policies
 
+def get_policy(prob: mdp.mdp, V):
+    pi = {}
+    for s in prob.S:
+        minQ = math.inf
+        mina = list(prob.U)[0]
+        for a in prob.U:
+            Q = prob.C(s, a) + prob.alpha * sum([prob.P(s_next, s, a)*V[s_next] for s_next in prob.S])
+            if Q < minQ:
+                minQ = Q
+                mina = a
+        pi[s] = mina
+    return pi
 
 h = 0.19
 S = []
@@ -162,7 +180,6 @@ while x < 1:
 z = 0.5
 gz = lambda z: (lambda state, action: abs(state - z))
 
-alpha = 0.1
 
 
 def p(y, w, u):
@@ -177,26 +194,49 @@ def p_disc(y, x, u):
     x_disc = S[math.floor(x / h)]
     return h * p(y_disc, x_disc, u) / sum([h * p(m, x_disc, u) for m in S])
 
+def p_deterministic(y, x, u):
+    closest = S[0]
+    mindist = math.inf
+    for s in S:
+        if abs(u-s) < mindist:
+            mindist = abs(u-s)
+            closest = s
+    return 1 if y == closest else 0
 
-target_states = [0.3, 0.6]
+
+target_states = [0.1, 0.9]
 G = []
 for target in target_states:
     G += [gz(target)]
 defaultvalue = lambda state: 0
 
-H = 12
-# print(S)
-problem = SetBasedMCTS(S, U, G, alpha, p_disc, H, defaultvalue)
-(values, policies) = problem.solve(budget=0.2)
-# print(f"values \n {values}")
-print(f"policies \n {policies}")
-key = '10'*int(H/2)
-plt.plot(S, [values[key][s] for s in S])
-
-V = problem.solveBellman(key)
-print(f"V[{S[4]}] = {V[S[4]]}")
-plt.plot(S, [V[s] for s in S])
-plt.savefig("figure.png")
+H = 6
+alpha = 0.7
+err = []
+for i in range(6):
+    H = (i+1) * 2
+    # print(S)
+    problem = SetBasedMCTS(S, U, G, alpha, p_deterministic, H, defaultvalue)
+    (values, policies) = problem.solve(budget=0.1)
+    # print(f"values \n {values}")
+    # print(f"policies \n {policies}")
+    key = '10'*int(H/2)
+    plt.figure(0)
+    plt.title("tree and bellman(o)")
+    plt.plot(S, [values[key][s] for s in S])
+    print(f"tree policy: {policies[key]}")
+    (V, pi) = problem.solveBellman(key)
+    print(f"bellman policy, {pi}")
+    print(f"final result: {V}")
+    # plt.figure(1)
+    # plt.title("bellman")
+    plt.plot(S, [V[s] for s in S], marker="o")
+    err.append(sum([abs(V[s] - values[key][s]) for s in S]))
+plt.figure(2)
+plt.title("error")
+plt.plot(err)
+plt.show()
+# plt.savefig("figure.png")
 
 
 # class setbasedValue:

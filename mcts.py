@@ -235,7 +235,7 @@ def get_policy(mdpseq, budget, horizon, defaultvalue):
         while time.time() - tic < budget:
             root.visit(horizon, defaultvalue)
             n += 1
-        print(f"time elapsed: {round(time.time() - tic, 4)}, budget: {budget}, n={n}")
+        print(f"time elapsed: {round(time.time() - tic, 4)}, budget: {budget}, n={n}", end='\r')
         pi[initial_state] = list(mdpseq[0].U)[0]
         minQ = math.inf
         for child in root.children:
