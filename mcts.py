@@ -30,9 +30,9 @@ class Tree:
         else:
             self.proc = mdpseq[self.depth]
         self.running_cost = 0  # this is the cost incurred from the single previous action
-        if not(action is None):
+        if not (action is None):
             for state in self.proc.S:
-                self.running_cost += self.parent.dist[state] * self.proc.C(state, action)
+                self.running_cost += self.parent.dist[state] * self.parent.proc.C(state, action)
 
     def add_child(self, action):
         next_dist = {}
@@ -50,11 +50,11 @@ class Tree:
         """
         if self.depth == horizon:
             if self.value is None:
-                self.value = sum([(self.dist[state]*defaultvalue(state)) for state in self.proc.S])
+                self.value = sum([(self.dist[state] * defaultvalue(state)) for state in self.proc.S])
             return self.value
         else:
             # choose random action
-            a = list(self.proc.U)[random.randint(0,len(self.proc.U)-1)]
+            a = list(self.proc.U)[random.randint(0, len(self.proc.U) - 1)]
             for child in self.children:
                 if child.action == a:
                     v = child.running_cost + child.proc.alpha * child.rollout(horizon, defaultvalue)
@@ -104,16 +104,15 @@ class Tree:
         # If this is a leaf node, then expand
         if self.visits == 1 or self.depth == horizon - 1:
             value = self.rollout(horizon, defaultvalue)
-        else:   # If not a leaf then Select a branch down which to explore
+        else:  # If not a leaf then Select a branch down which to explore
             value = self.select().visit(horizon, defaultvalue)
         # update this value
         if self.value is None:
             self.value = value
         else:
-            self.value = ((self.visits - 1)/self.visits)*self.value + (1/self.visits)*value
+            self.value = ((self.visits - 1) / self.visits) * self.value + (1 / self.visits) * value
         # return Q for previous nodes to update
         return self.running_cost + self.proc.alpha * self.value
-
 
     def get_info(self):
         s = f"action={self.action}\n"
@@ -133,25 +132,24 @@ class Tree:
 
     def print_tree(self):
         fig, ax = plt.subplots()
-        plt.xlim(-10,10)
-        plt.ylim(-0.5,10)
+        plt.xlim(-10, 10)
+        plt.ylim(-0.5, 10)
         self.print_tree_helper(ax, 0.4)
 
-
     def print_tree_helper(self, ax, x):
-        text = f"a : {round(self.action,3) if self.action else self.action} \n l = {round(self.running_cost,3) if self.running_cost else self.running_cost} \n v = {round(self.value,3) if self.value else self.value} "
-        ax.text(x, 0.2*self.depth, text, fontsize=10, color='black',
+        text = f"a : {round(self.action, 3) if self.action else self.action} \n l = {round(self.running_cost, 3) if self.running_cost else self.running_cost} \n v = {round(self.value, 3) if self.value else self.value} "
+        ax.text(x, 0.2 * self.depth, text, fontsize=10, color='black',
                 bbox=dict(facecolor='none', edgecolor='black'))
         separation = 5
-        y = 0.2*self.depth
+        y = 0.2 * self.depth
         i = 0
         l = len(self.children) - 1
-        offset = l/2 * (separation/(self.depth+1))
+        offset = l / 2 * (separation / (self.depth + 1))
         for child in self.children:
-            x_next = x - offset + (separation*i/(self.depth+1))
-            y_next = 0.2*child.depth
+            x_next = x - offset + (separation * i / (self.depth + 1))
+            y_next = 0.2 * child.depth
             plt.plot([x, x_next], [y, y_next], "blue")
-            child.print_tree_helper(ax, x - offset + (separation*i/(self.depth+1)))
+            child.print_tree_helper(ax, x - offset + (separation * i / (self.depth + 1)))
             i += 1
 
 
@@ -164,12 +162,13 @@ def rollout_policy(pi, mdp, horizon):
         for state in mdp.S:
             dist[state] = 1 if state == s0 else 0
         for h in range(horizon):
-            V[s0] += (mdp.alpha ** h) * sum([(dist[s]*mdp.C(s,pi[s])) for s in mdp.S])
+            V[s0] += (mdp.alpha ** h) * sum([(dist[s] * mdp.C(s, pi[s])) for s in mdp.S])
             next_dist = {}
             for state in mdp.S:
-                next_dist[state] = sum([dist[prev]*mdp.P(state,prev,pi[prev]) for prev in mdp.S])
+                next_dist[state] = sum([dist[prev] * mdp.P(state, prev, pi[prev]) for prev in mdp.S])
             dist = next_dist
     return V
+
 
 def rollout_time_policy(pis, mdp, horizon):
     V = {}
@@ -180,10 +179,10 @@ def rollout_time_policy(pis, mdp, horizon):
         for state in mdp.S:
             dist[state] = 1 if state == s0 else 0
         for h in range(horizon):
-            V[s0] += (mdp.alpha ** h) * sum([(dist[s]*mdp.C(s,pis[h][s])) for s in mdp.S])
+            V[s0] += (mdp.alpha ** h) * sum([(dist[s] * mdp.C(s, pis[h][s])) for s in mdp.S])
             next_dist = {}
             for state in mdp.S:
-                next_dist[state] = sum([dist[prev]*mdp.P(state,prev,pis[h][prev]) for prev in mdp.S])
+                next_dist[state] = sum([dist[prev] * mdp.P(state, prev, pis[h][prev]) for prev in mdp.S])
             dist = next_dist
     return V
 
@@ -229,25 +228,67 @@ def get_policy(mdpseq, budget, horizon, defaultvalue):
         dist = {}
         for state in mdpseq[0].S:
             dist[state] = 1 if state == initial_state else 0
-        root = Tree(0,None,dist,None,mdpseq)
+        root = Tree(0, None, dist, None, mdpseq)
         tic = time.time()
         n = 0
         while time.time() - tic < budget:
             root.visit(horizon, defaultvalue)
             n += 1
-        print(f"time elapsed: {round(time.time() - tic, 4)}, budget: {budget}, n={n}", end='\r')
+        # print(f"time elapsed: {round(time.time() - tic, 4)}, budget: {budget}, n={n}")
+
+
         pi[initial_state] = list(mdpseq[0].U)[0]
         minQ = math.inf
         for child in root.children:
             if not child.value is None:
                 Q = child.running_cost + child.proc.alpha * child.value
+                # print(f"action choice = {round(child.action,2)}, Q = {round(Q, 4)}")
                 if Q < minQ:
                     pi[initial_state] = child.action
                     minQ = Q
+
+        # print("---------------")
     return pi
+#
+#
+# S = [0.3, 0.6, 0.9]
+# U = [0.3, 0.6, 0.9]
+# alpha = 1
+#
+# def p(y, w, u):
+#     if y < u:
+#         return (y / u) * 2.0
+#     else:
+#         return 2.0 * (1 - y) / (1 - u)
+#
+#
+# def p_disc(y, x, u):
+#     y_disc = S[math.floor(y / h)]
+#     x_disc = S[math.floor(x / h)]
+#     return h * p(y_disc, x_disc, u) / sum([h * p(m, x_disc, u) for m in S])
+# def p_discrete(y, x, u):
+#     return 1 if y == u else 0
+# gz = lambda z: (lambda state, action: 10 * abs(state - z) + 0.0005 * abs(state - action))
+# M = [0, 0]
+# H = 2
+# key = '01'
+# for h in range(H):
+#     if key[h] == '0':
+#         M[h] = mdp.mdp(S, U, gz(S[0]), alpha, p_disc)
+#         M[h].setName("l0")
+#     elif key[h] == '1':
+#         M[h] = mdp.mdp(S, U, gz(S[2]), alpha, p_disc)
+#         M[h].setName("h1")
+#     else:
+#         print("problem")
+# V = lambda state: 0
+# print(M)
+# pi = get_policy(M, 0.1, H, V)
+# print(pi)
+
 
 # compare against real as calculated by Bellman
-def bellman(depth, proc:mdp):
+def bellman(depth, proc: mdp):
     V = {}
     a = {}
     for state in proc.S:

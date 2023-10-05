@@ -103,6 +103,25 @@ class SetBasedMCTS:
                 dist = next_dist
         return V
 
+    def rollout_seq_policy_horizon(self, mdpseq, pis):
+        key = ''.join([format(mdp.name, 'd') for mdp in mdpseq])
+        V = {}
+
+        for s in self.S:
+            V[s] = 0
+        for s0 in self.S:
+            dist = {}
+            for state in self.S:
+                dist[state] = 1 if state == s0 else 0
+            for h in range(self.H):
+                k = key[h:self.H]
+                V[s0] += (self.alpha ** h) * sum([(dist[s] * mdpseq[h].C(s, pis[self.H-h][k][s])) for s in self.S])
+                next_dist = {}
+                for state in self.S:
+                    next_dist[state] = sum([dist[prev] * self.P(state, prev, pis[k][prev]) for prev in self.S])
+                dist = next_dist
+        return V
+
     def bellman_iteration(self, proc: mdp.mdp, V):
         pi = {}
         nextV = {}
@@ -133,6 +152,10 @@ class SetBasedMCTS:
         V_iter = V
         for i in range(self.H):
             (V_iter, pi_iter) = self.bellman_iteration(seq[self.H-1-i], V_iter)
+            # print("----------------------------------")
+            # print(f"bellman h = {self.H-1-i}, mdp = {seq[self.H-1-i]}")
+            # print(pi_iter)
+            # print("----------------------------------")
         return (V_iter, pi_iter)
 
     def solve(self, budget):
@@ -162,26 +185,22 @@ def get_policy(prob: mdp.mdp, V):
         mina = list(prob.U)[0]
         for a in prob.U:
             Q = prob.C(s, a) + prob.alpha * sum([prob.P(s_next, s, a)*V[s_next] for s_next in prob.S])
+            print(f"current state: {s} action choice = {a} , Q = {Q}")
             if Q < minQ:
                 minQ = Q
                 mina = a
         pi[s] = mina
+        input()
+        print("---------")
     return pi
-
-h = 0.19
-S = []
-U = []
-x = h
-while x < 1:
-    S.append(x - random.random() * h)
-    U.append(x - h)
-    x += h
-
-z = 0.5
-gz = lambda z: (lambda state, action: abs(state - z))
-
-
-
+H = 5
+alpha = 0.7
+gz = lambda z: (lambda state, action: 1. * abs(state - z) + 0.0005 * abs(state-action))
+target_states = [0.2, 0.8]
+G = []
+for target in target_states:
+    G += [gz(target)]
+defaultvalue = lambda state: 0
 def p(y, w, u):
     if y < u:
         return (y / u) * 2.0
@@ -202,43 +221,108 @@ def p_deterministic(y, x, u):
             mindist = abs(u-s)
             closest = s
     return 1 if y == closest else 0
+h = 0.5
+valmap = []
+errmap = []
+d = 2
+while d < 30:
+    d += 1
+    h = 1.0/d
+    S = []
+    U = []
+    x = h
+    while x < 1.00000001:
+        point = round(x - h/2, 3)
+        S.append(point) #random.random() * h)
+        U.append(point)
+        x += h
+
+    # print(f"parameters: \n S: {S} \n U: {U} \n G: {G} \n H: {H} \n def: {defaultvalue} \n")
+    prob = SetBasedMCTS(S, U, G, alpha, p_disc, H, defaultvalue)
+    (values, policies) = prob.solve(budget=10)
+    valmap.append(values)
+    if len(valmap) > 1:
+        # calculate the error
+        plotkeys = ['0'*H, '1'*H]
+        errdict = {}
+        if H > 1:
+            oskey1 = '01'*int(H/2) if (H % 2 == 0) else '01'*int(H/2) + '0'
+            oskey2 = '10' * int(H / 2) if (H % 2 == 0) else '10' * int((H-1) / 2) + '1'
+            plotkeys.append(oskey1)
+            plotkeys.append(oskey2)
+        for key in plotkeys:
+            e = 0
+            for s in values[key]:
+                nearest = math.inf
+                state_error = 0
+                for sclose in valmap[len(valmap)-2][key]:
+                    if abs(sclose - s) < abs(nearest - s):
+                        nearest = sclose
+                        state_error = abs(values[key][s] - valmap[len(valmap)-2][key][nearest])
+                if state_error > e:
+                    e = state_error
+            # e is the infinity norm of the difference between successive iterations
+            errdict[key] = e
+        errmap.append(errdict)
+
+count = 2
+for m in errmap:
+    for key in m:
+        plt.plot(count, m[key], marker='o')
+    count += 1
+plt.savefig("gridspaceerror.png")
 
 
-target_states = [0.1, 0.9]
-G = []
-for target in target_states:
-    G += [gz(target)]
-defaultvalue = lambda state: 0
 
-H = 6
-alpha = 0.7
-err = []
-for i in range(6):
-    H = (i+1) * 2
-    # print(S)
-    problem = SetBasedMCTS(S, U, G, alpha, p_deterministic, H, defaultvalue)
-    (values, policies) = problem.solve(budget=0.1)
-    # print(f"values \n {values}")
-    # print(f"policies \n {policies}")
-    key = '10'*int(H/2)
-    plt.figure(0)
-    plt.title("tree and bellman(o)")
-    plt.plot(S, [values[key][s] for s in S])
-    print(f"tree policy: {policies[key]}")
-    (V, pi) = problem.solveBellman(key)
-    print(f"bellman policy, {pi}")
-    print(f"final result: {V}")
-    # plt.figure(1)
-    # plt.title("bellman")
-    plt.plot(S, [V[s] for s in S], marker="o")
-    err.append(sum([abs(V[s] - values[key][s]) for s in S]))
-plt.figure(2)
-plt.title("error")
-plt.plot(err)
-plt.savefig("error.png")
-plt.figure(0)
-plt.savefig("values.png")
+# # print(policies)
+# plotkeys = ['0'*H, '1'*H]
+# if H > 1:
+#     oskey1 = '01'*int(H/2) if (H % 2 == 0) else '01'*int(H/2) + '0'
+#     oskey2 = '10' * int(H / 2) if (H % 2 == 0) else '10' * int((H-1) / 2) + '1'
+#     plotkeys.append(oskey1)
+#     plotkeys.append(oskey2)
+# sm = 0
+# for key in plotkeys:
+#     #plt.title(f"tree and bellman(o),key {key}")
+#     #plt.plot(S, [values[key][s] for s in S])
+#     #print(f"tree policy: {policies[key]}")
+#     # print(f"tree policy at h = 0: {policies[key]}")
+#     (V, pi) = prob.solveBellman(key)
+#     e = sum([abs(valmap[h[s] - values[key][s]) for s in S])
+#     sm += e
+# plt.plot(H, sm, marker='o')
+#     #print(f"final result: {V}")
+# plt.show()
 
 
-# class setbasedValue:
-#     def __init__(self, mdpset, initV, H):
+#
+# for i in range(2):
+#     H = (3+1) * 2
+#     # print(S)
+#     problem = SetBasedMCTS(S, U, G, alpha, p_disc, H, defaultvalue)
+#     (values, policies) = problem.solve(budget=0.1)
+#     # print(f"values \n {values}")
+#     # print(f"policies \n {policies}")
+#     key = '10'*int(H/2)
+#     plt.figure(0)
+#     plt.title("tree and bellman(o)")
+#     plt.plot(S, [values[key][s] for s in S])
+#     #print(f"tree policy: {policies[key]}")
+#     # print(f"tree policy at h = 0: {policies[key]}")
+#     (V, pi) = problem.solveBellman(key)
+#     #print(f"final result: {V}")
+#     # plt.figure(1)
+#     # plt.title("bellman")
+#     plt.plot(S, [V[s] for s in S], marker="o")
+#     err.append(sum([abs(V[s] - values[key][s]) for s in S]))
+#     for h in range(H):
+#         k = key[h:H] + '0' * h
+#         print(f"h = {h}, key = {k} tree policy :\n {policies[k]}")
+# plt.figure(2)
+# plt.title("errorh4")
+# plt.plot(err)
+# plt.savefig("errorh4.png")
+# plt.figure(0)
+# plt.savefig("valuesh4.png")
+
+
